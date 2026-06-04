@@ -74,6 +74,15 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install Chromium on Linux
+        if: runner.os == 'Linux'
+        id: setup-chromium
+        uses: browser-actions/setup-chrome@v2
+        with:
+          # "latest" is resolved from Chromium Snapshots, not stable Google Chrome.
+          chrome-version: latest
+          install-dependencies: true
+
       - name: Install browsers on Linux
         if: runner.os == 'Linux'
         run: |
@@ -92,7 +101,8 @@ jobs:
           sudo apt-get update
           sudo apt-get -y --no-install-recommends install opera-stable
           
-          sudo apt-get install chromium-browser
+          sudo ln -sf "${{ steps.setup-chromium.outputs.chrome-path }}" /usr/local/bin/chromium
+          chromium --version
           
           sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
           echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main"|sudo tee /etc/apt/sources.list.d/brave-browser-release.list
@@ -112,7 +122,17 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          choco install chromium opera brave googlechrome --no-progress -y --force
+          choco install chromium opera brave --no-progress -y --force
+
+          $chromePaths = @(
+            "$env:PROGRAMFILES\Google\Chrome\Application\chrome.exe",
+            "${env:PROGRAMFILES(X86)}\Google\Chrome\Application\chrome.exe",
+            "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+          )
+          $chromePath = $chromePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $chromePath) {
+            choco install googlechrome --no-progress -y --force
+          }
 
       - name: Install browsers on MacOS
         if: startsWith(runner.os, 'macOS')
